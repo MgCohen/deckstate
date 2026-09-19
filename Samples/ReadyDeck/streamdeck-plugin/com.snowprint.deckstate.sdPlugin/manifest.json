@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "com.snowprint.deckstate",
+  "Name": "Snowprint DeckState",
+  "Version": "0.1.0.0",
+  "Author": "Snowprint Studios",
+  "Description": "DeckState-driven Stream Deck actions.",
+  "Category": "Snowprint DeckState",
+  "CategoryIcon": "imgs/category",
+  "Icon": "imgs/plugin",
+  "CodePathWin": "bin/DeckState.ReadyDeckPlugin.exe",
+  "Actions": [{
+    "Name": "Ready Toggle",
+    "UUID": "com.snowprint.deckstate.ready-work",
+    "Icon": "imgs/agent-status",
+    "Tooltip": "Toggle this key between idle and ready.",
+    "Controllers": ["Keypad"],
+    "UserTitleEnabled": false,
+    "States": [{ "Image": "imgs/agent-status", "TitleAlignment": "middle" }]
+  }, {
+    "Name": "Ready Counter / Reset",
+    "UUID": "com.snowprint.deckstate.ready-counter",
+    "Icon": "imgs/agent-status",
+    "Tooltip": "Shows ready progress, animates, and resets the deck.",
+    "Controllers": ["Keypad"],
+    "UserTitleEnabled": false,
+    "States": [{ "Image": "imgs/agent-status", "TitleAlignment": "middle" }]
+  }],
+  "SDKVersion": 2,
+  "Software": { "MinimumVersion": "6.6" },
+  "OS": [{ "Platform": "windows", "MinimumVersion": "10" }]
+}

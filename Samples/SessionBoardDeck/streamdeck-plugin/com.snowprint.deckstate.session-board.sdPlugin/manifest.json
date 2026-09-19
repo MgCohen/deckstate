@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "com.snowprint.deckstate.session-board",
+  "Name": "DeckState Session Board",
+  "Version": "0.1.0.0",
+  "Author": "Snowprint Studios",
+  "Description": "Shows the Battlebox session-board snapshot on Stream Deck.",
+  "Category": "Snowprint DeckState",
+  "CategoryIcon": "imgs/category",
+  "Icon": "imgs/plugin",
+  "CodePathWin": "bin/DeckState.SessionBoardPlugin.exe",
+  "Actions": [{
+    "Name": "Session Slot",
+    "UUID": "com.snowprint.deckstate.session-board.session",
+    "Icon": "imgs/agent-status",
+    "Tooltip": "Shows a Battlebox session. Press to open its provider URL.",
+    "Controllers": ["Keypad"],
+    "UserTitleEnabled": false,
+    "States": [{ "Image": "imgs/agent-status", "TitleAlignment": "middle" }]
+  }],
+  "SDKVersion": 2,
+  "Software": { "MinimumVersion": "6.6" },
+  "OS": [{ "Platform": "windows", "MinimumVersion": "10" }]
+}
