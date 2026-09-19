@@ -1,0 +1,29 @@
+# .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+
+# Build artifacts
+artifacts/
+*.user
+*.suo
+*.userprefs
+
+# Rider / Visual Studio
+.idea/
+.vs/
+*.DotSettings.user
+
+# Test / packaging output
+[Tt]est[Rr]esult*/
+*.nupkg
+*.snupkg
+
+# OS
+.DS_Store
+Thumbs.db

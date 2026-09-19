@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/Samples/" />
+  <Folder Name="/Samples/ReadyDeck/">
+    <Project Path="Samples/ReadyDeck/DeckState.ReadyDeck.ProtocolHarness/DeckState.ReadyDeck.ProtocolHarness.csproj" />
+    <Project Path="Samples/ReadyDeck/DeckState.ReadyDeckPlugin/DeckState.ReadyDeckPlugin.csproj" />
+  </Folder>
+  <Folder Name="/Samples/SessionBoardDeck/">
+    <Project Path="Samples/SessionBoardDeck/DeckState.SessionBoardPlugin/DeckState.SessionBoardPlugin.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/DeckState.Core/DeckState.Core.csproj" />
+    <Project Path="src/DeckState.StreamDeck/DeckState.StreamDeck.csproj" />
+  </Folder>
+</Solution>
