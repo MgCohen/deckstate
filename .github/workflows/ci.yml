@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build solution (libraries + samples)
+        run: dotnet build DeckState.slnx -c Release
+
+      - name: Build emulator (Blazor WASM)
+        run: dotnet build playground/DeckState.WasmEmulator/DeckState.WasmEmulator.csproj -c Release
+
+      - name: Build E2E tests
+        run: dotnet build playground/DeckState.WasmEmulator.E2E/DeckState.WasmEmulator.E2E.csproj -c Release
+
+      # No pre-installed browser on GitHub runners, so fetch Playwright's managed Chromium + ffmpeg.
+      # The fixture uses this managed browser because /opt/pw-browsers/chromium is absent here.
+      - name: Install Playwright browser
+        run: pwsh playground/DeckState.WasmEmulator.E2E/bin/Release/net10.0/playwright.ps1 install chromium --with-deps
+
+      - name: Run E2E smoke suite
+        run: dotnet test playground/DeckState.WasmEmulator.E2E/DeckState.WasmEmulator.E2E.csproj -c Release --no-build --logger "console;verbosity=normal"
+
+      - name: Upload videos & traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: artifacts/e2e/
+          if-no-files-found: ignore

@@ -11,10 +11,10 @@ namespace DeckState.WasmEmulator.E2E;
 /// </summary>
 public sealed class EmulatorFixture : IAsyncLifetime
 {
-    // The box's pre-installed Chromium. Its build (1194) differs from the driver's expected 1187,
-    // so we launch it by path instead of the version-matched lookup. ffmpeg (1011) matches, so
-    // video recording works with nothing to install.
-    private const string ChromiumPath = "/opt/pw-browsers/chromium";
+    // The cloud box ships a pre-installed Chromium whose build (1194) differs from the driver's
+    // expected 1187, so we launch it by path instead of the version-matched lookup. On CI (or any
+    // host without it) we fall back to Playwright's managed browser, which the workflow installs.
+    private const string PreinstalledChromium = "/opt/pw-browsers/chromium";
 
     private Process? _server;
     private IPlaywright? _playwright;
@@ -37,11 +37,13 @@ public sealed class EmulatorFixture : IAsyncLifetime
         await WaitForServerAsync();
 
         _playwright = await Playwright.CreateAsync();
-        Browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-        {
-            Headless = true,
-            ExecutablePath = ChromiumPath,
-        });
+        var options = new BrowserTypeLaunchOptions { Headless = true };
+        // Prefer an explicit path, then the box's pre-installed binary; otherwise use Playwright's
+        // managed browser (installed by the CI workflow).
+        var chromium = Environment.GetEnvironmentVariable("EMULATOR_CHROMIUM_PATH")
+            ?? (File.Exists(PreinstalledChromium) ? PreinstalledChromium : null);
+        if (chromium is not null) options.ExecutablePath = chromium;
+        Browser = await _playwright.Chromium.LaunchAsync(options);
     }
 
     /// <summary>A fresh context + page for one test, recording video into its own folder, tracing on.</summary>
