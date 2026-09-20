@@ -4,33 +4,28 @@ using DeckState.StreamDeck;
 
 namespace DeckState.Samples.SessionBoardDeck;
 
-public static class SessionBoardPlugin
+public static partial class SessionBoardPlugin
 {
     public const string SessionAction = "com.snowprint.deckstate.session-board.session";
-    private const int Columns = 4;
 
-    public static async Task RunAsync(StreamDeckConnection connection, CancellationToken cancellationToken)
+    /// <summary>
+    /// The real SessionBoard loop over injected seams. Hardware and the emulator share this exact
+    /// code — only the <see cref="ISessionBoardSource"/> (where sessions come from), the
+    /// <see cref="ISessionOpener"/> (how a key press opens a URL) and the deck's column count differ.
+    /// </summary>
+    public static async Task RunAsync(
+        StreamDeckConnection connection,
+        ISessionBoardSource source,
+        ISessionOpener opener,
+        int columns,
+        CancellationToken cancellationToken)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-        var endpoint = new Uri(Environment.GetEnvironmentVariable("DECKSTATE_BATTLEBOX_URL") ?? "http://127.0.0.1:8787/api/sessions");
-
-        // Cloudflare Access service token (machine-to-machine). When both are set,
-        // send them on every request so a CF Access-protected endpoint authorizes the poll.
-        var cfClientId = Environment.GetEnvironmentVariable("DECKSTATE_BATTLEBOX_CF_CLIENT_ID");
-        var cfClientSecret = Environment.GetEnvironmentVariable("DECKSTATE_BATTLEBOX_CF_CLIENT_SECRET");
-        if (!string.IsNullOrEmpty(cfClientId) && !string.IsNullOrEmpty(cfClientSecret))
-        {
-            http.DefaultRequestHeaders.Add("CF-Access-Client-Id", cfClientId);
-            http.DefaultRequestHeaders.Add("CF-Access-Client-Secret", cfClientSecret);
-        }
-
-        var client = new BattleboxSessionBoardClient(http, endpoint);
         var surface = new StreamDeckSurface(connection);
         var context = new SessionBoardContext();
         await using var deck = new SessionBoardRuntime(context);
         var keyByContext = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        var refresh = RefreshLoop(deck, client, cancellationToken);
+        var refresh = RefreshLoop(deck, source, cancellationToken);
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -47,9 +42,9 @@ public static class SessionBoardPlugin
                         if (!keyByContext.ContainsKey(streamDeckContext))
                         {
                             var coordinates = root.GetProperty("payload").GetProperty("coordinates");
-                            var slot = coordinates.GetProperty("row").GetInt32() * Columns + coordinates.GetProperty("column").GetInt32();
+                            var slot = coordinates.GetProperty("row").GetInt32() * columns + coordinates.GetProperty("column").GetInt32();
                             keyByContext.Add(streamDeckContext, keyId);
-                            await deck.RegisterAsync(SessionBoardKey.Create(keyId, slot, context, surface), cancellationToken);
+                            await deck.RegisterAsync(SessionBoardKey.Create(keyId, slot, context, surface, opener), cancellationToken);
                         }
                         surface.AddContext(keyId, streamDeckContext);
                         await deck.SetVisibleAsync(keyId, true, cancellationToken);
@@ -71,11 +66,11 @@ public static class SessionBoardPlugin
         finally { await refresh; }
     }
 
-    private static async Task RefreshLoop(SessionBoardRuntime deck, BattleboxSessionBoardClient client, CancellationToken cancellationToken)
+    private static async Task RefreshLoop(SessionBoardRuntime deck, ISessionBoardSource source, CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            try { await deck.RefreshAsync(client, cancellationToken); }
+            try { await deck.RefreshAsync(source, cancellationToken); }
             catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
             {
                 deck.Context.SetSnapshot(new SessionBoardSnapshot(DateTimeOffset.UtcNow, [], "Battlebox unavailable."));

@@ -13,3 +13,12 @@ bash scripts/package-streamdeck-windows.sh
 ```
 
 Install the resulting `artifacts/com.snowprint.deckstate.session-board.sdPlugin` directory on the Windows machine that runs Stream Deck, then place **Session Slot** on keys in a 4×3 grid.
+
+## Host seams
+
+The plugin loop (`SessionBoardPlugin.RunAsync`) takes two injected seams so the same runtime, key state machine, and rendering run unchanged on any host — the same idea as `IStreamDeckTransport`:
+
+- `ISessionBoardSource` — where sessions come from. Hardware uses `BattleboxSessionBoardClient` (the HTTP poll above); the WASM emulator swaps in an in-process mock. The hardware entrypoint that wires the real source lives in `SessionBoardPlugin.Hardware.cs`.
+- `ISessionOpener` — how a key press opens a session URL. Hardware uses `ProcessSessionOpener` (the OS browser); the emulator opens a new tab.
+
+See `playground/DeckState.WasmEmulator` for the emulator wiring.
