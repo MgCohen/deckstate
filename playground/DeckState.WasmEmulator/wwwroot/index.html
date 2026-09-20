@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>DeckState Emulator</title>
+  <base href="./" />
+  <style>
+    :root { --bg:#0c111b; --fg:#eef4ff; --muted:#aab5c6; --accent:#4C3C79; --panel:#111827; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; background:var(--bg); color:var(--fg);
+      font-family:Arial,Helvetica,sans-serif; }
+    .wrap { max-width:760px; margin:0 auto; padding:16px; display:flex; flex-direction:column;
+      align-items:center; gap:12px; }
+    h1 { font-size:20px; margin:8px 0 0; text-align:center; }
+    .sub { color:var(--muted); font-size:13px; line-height:1.5; text-align:center; margin:0 0 4px; }
+    .sub code { color:#cdd7ea; }
+    .grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; width:100%;
+      max-width:640px; }
+    .key { padding:0; border:0; background:transparent; cursor:pointer; border-radius:12px;
+      aspect-ratio:1/1; overflow:hidden; -webkit-tap-highlight-color:transparent; }
+    .key svg { width:100%; height:100%; display:block; }
+    .key:active { transform:scale(0.97); }
+    .key:empty::after { content:""; display:block; width:100%; height:100%;
+      background:#141b29; border-radius:12px; }
+    .controls { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; justify-content:center; }
+    .btn { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 18px;
+      font-size:14px; cursor:pointer; }
+    .btn.secondary { background:#243049; }
+    .btn:disabled { opacity:.6; cursor:default; }
+    #boot { color:var(--muted); font-size:14px; padding:40px; text-align:center; }
+    .loader { color:var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="app"><div id="boot">Loading real DeckState runtime (WebAssembly)…</div></div>
+  <div id="blazor-error-ui" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#b4232a;color:#fff;padding:8px 12px;font-size:13px;">
+    An error occurred. <a href="" style="color:#fff;text-decoration:underline;">Reload</a>
+  </div>
+  <script src="_framework/blazor.webassembly.js"></script>
+</body>
+</html>

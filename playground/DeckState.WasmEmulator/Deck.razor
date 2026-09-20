@@ -1,0 +1,147 @@
+@implements IAsyncDisposable
+@using System.Text.Json
+@using DeckState.StreamDeck
+@using DeckState.Samples.ReadyDeck
+
+<div class="wrap">
+  <h1>DeckState · ReadyDeck (live C#)</h1>
+  <p class="sub">The real <code>ReadyDeckPlugin</code> loop over the real <code>DeckState.Core</code> + <code>DeckState.StreamDeck</code> stack, compiled to WebAssembly. Only the Elgato WebSocket is swapped for an in-process transport — the same <code>willAppear</code>/<code>keyDown</code>/<code>setImage</code> JSON crosses it. Click a tile = a real serialized <code>keyDown</code>.</p>
+
+  <div class="grid">
+    @foreach (var slot in _slots)
+    {
+      <button class="key @(slot.IsCounter ? "counter" : null)" @onclick="() => KeyDownAsync(slot)">@Svg(slot.Context)</button>
+    }
+  </div>
+
+  <div class="controls">
+    <button class="btn" @onclick="AutoRunAsync" disabled="@_running">@(_running ? "Running…" : "Auto-run")</button>
+    <button class="btn secondary" @onclick="ResetAsync">Reset</button>
+  </div>
+</div>
+
+@code {
+    private sealed record Slot(string Context, string Action, bool IsCounter, int Row, int Column);
+
+    private readonly List<Slot> _slots = new();
+    private readonly Dictionary<string, string> _svgByContext = new(StringComparer.Ordinal);
+
+    private JsBridgeTransport _transport = null!;
+    private CancellationTokenSource _cts = null!;
+    private Task _host = Task.CompletedTask;
+    private bool _running;
+    private bool _renderPending;
+
+    private const string CounterContext = "cctx";
+
+    protected override async Task OnInitializedAsync()
+    {
+        for (var i = 0; i < 12; i++)
+            _slots.Add(new Slot($"wctx-{i + 1:00}", ReadyDeckPlugin.WorkAction, false, i / 4, i % 4));
+        _slots.Add(new Slot(CounterContext, ReadyDeckPlugin.CounterAction, true, 3, 0));
+
+        _transport = new JsBridgeTransport();
+        _transport.Frame += OnFrame;
+        _cts = new CancellationTokenSource();
+
+        // Host the real plugin loop over the bridge — identical to hardware, minus the socket.
+        _host = StreamDeckPluginHost.RunAsync(
+            _transport,
+            new StreamDeckPluginArguments(0, "deckstate-emulator", "registerPlugin"),
+            ReadyDeckPlugin.RunAsync,
+            _cts.Token);
+
+        // The Stream Deck app sends one willAppear per visible key. So do we — real frames.
+        foreach (var slot in _slots)
+            _transport.Deliver(WillAppear(slot));
+
+        await Task.CompletedTask;
+    }
+
+    private MarkupString Svg(string context) =>
+        new(_svgByContext.TryGetValue(context, out var svg) ? svg : "");
+
+    private Task KeyDownAsync(Slot slot)
+    {
+        _transport.Deliver(KeyDown(slot));
+        return Task.CompletedTask;
+    }
+
+    private async Task AutoRunAsync()
+    {
+        if (_running) return;
+        _running = true;
+        await ResetAsync();
+        foreach (var slot in _slots.Where(s => !s.IsCounter))
+        {
+            _transport.Deliver(KeyDown(slot));
+            await Task.Delay(160);
+        }
+        await Task.Delay(700);
+        await ResetAsync(); // counter press resets the deck
+        _running = false;
+    }
+
+    private Task ResetAsync()
+    {
+        _transport.Deliver(KeyDown(_slots.First(s => s.IsCounter)));
+        return Task.CompletedTask;
+    }
+
+    // Inbound frame from the plugin. We only care about setImage (ReadyDeck sets no titles).
+    private void OnFrame(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("event", out var ev) || ev.GetString() != "setImage") return;
+            if (!root.TryGetProperty("context", out var ctx)) return;
+            if (!root.TryGetProperty("payload", out var payload) || !payload.TryGetProperty("image", out var img)) return;
+
+            var image = img.GetString();
+            const string prefix = "data:image/svg+xml,";
+            if (image is null || !image.StartsWith(prefix, StringComparison.Ordinal)) return;
+
+            _svgByContext[ctx.GetString()!] = Uri.UnescapeDataString(image[prefix.Length..]);
+            RequestRender();
+        }
+        catch (JsonException) { /* ignore malformed frames */ }
+    }
+
+    private void RequestRender()
+    {
+        if (_renderPending) return;
+        _renderPending = true;
+        _ = InvokeAsync(() =>
+        {
+            _renderPending = false;
+            StateHasChanged();
+        });
+    }
+
+    private static string WillAppear(Slot slot) => JsonSerializer.Serialize(new
+    {
+        action = slot.Action,
+        context = slot.Context,
+        @event = "willAppear",
+        payload = new { coordinates = new { row = slot.Row, column = slot.Column }, settings = new { } }
+    });
+
+    private static string KeyDown(Slot slot) => JsonSerializer.Serialize(new
+    {
+        action = slot.Action,
+        context = slot.Context,
+        @event = "keyDown",
+        payload = new { coordinates = new { row = slot.Row, column = slot.Column }, settings = new { } }
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        _transport.Frame -= OnFrame;
+        _cts.Cancel();
+        try { await _host; } catch (OperationCanceledException) { } catch (JsonException) { }
+        await _transport.DisposeAsync();
+        _cts.Dispose();
+    }
+}

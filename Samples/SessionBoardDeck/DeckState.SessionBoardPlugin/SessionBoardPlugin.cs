@@ -13,6 +13,17 @@ public static class SessionBoardPlugin
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         var endpoint = new Uri(Environment.GetEnvironmentVariable("DECKSTATE_BATTLEBOX_URL") ?? "http://127.0.0.1:8787/api/sessions");
+
+        // Cloudflare Access service token (machine-to-machine). When both are set,
+        // send them on every request so a CF Access-protected endpoint authorizes the poll.
+        var cfClientId = Environment.GetEnvironmentVariable("DECKSTATE_BATTLEBOX_CF_CLIENT_ID");
+        var cfClientSecret = Environment.GetEnvironmentVariable("DECKSTATE_BATTLEBOX_CF_CLIENT_SECRET");
+        if (!string.IsNullOrEmpty(cfClientId) && !string.IsNullOrEmpty(cfClientSecret))
+        {
+            http.DefaultRequestHeaders.Add("CF-Access-Client-Id", cfClientId);
+            http.DefaultRequestHeaders.Add("CF-Access-Client-Secret", cfClientSecret);
+        }
+
         var client = new BattleboxSessionBoardClient(http, endpoint);
         var surface = new StreamDeckSurface(connection);
         var context = new SessionBoardContext();

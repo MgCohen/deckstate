@@ -27,3 +27,8 @@ artifacts/
 # OS
 .DS_Store
 Thumbs.db
+
+# WASM emulator publish/staging output
+playground/**/publish/
+playground/**/pub2/
+playground/**/artifact-stage/
