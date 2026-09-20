@@ -25,8 +25,21 @@ public static class SessionBoardKey
         public override ValueTask<StateReaction> OnEventAsync(KeyEvent @event, SessionBoardContext context, CancellationToken cancellationToken)
         {
             var url = context.SessionAt(slot)?.OpenUrl;
-            if (!string.IsNullOrWhiteSpace(url)) Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            if (!string.IsNullOrWhiteSpace(url)) OpenInBrowser(url);
             return ValueTask.FromResult(StateReaction.None);
+        }
+
+        // The plugin runs at the Stream Deck app's (elevated / uiAccess) integrity, where a direct
+        // ShellExecute of a URL can fail. Hand off via explorer.exe so the URL opens in the user's
+        // normal-integrity default browser, and never let a launch failure crash the key loop.
+        private static void OpenInBrowser(string url)
+        {
+            try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{url}\"") { UseShellExecute = true }); }
+            catch
+            {
+                try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+                catch { /* nothing we can do from here */ }
+            }
         }
 
         public override KeyVisual Draw(SessionBoardContext context)
@@ -43,7 +56,7 @@ public static class SessionBoardKey
                 : session.Bucket.ToLowerInvariant() switch
                 {
                     "working" => ("#176b87", "●", "WORKING"),
-                    "review" => ("#7d6608", "✓", "REVIEW"),
+                    "review" => ("#7d6608", "✓", "IN REVIEW"),
                     "done" => ("#455a64", "✓", "DONE"),
                     _ => ("#5b2c6f", "!", "BLOCKED"),
                 };
