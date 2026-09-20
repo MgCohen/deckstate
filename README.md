@@ -34,3 +34,13 @@ bash playground/DeckState.WasmEmulator/scripts/publish-emulator.sh
 ```
 
 That builds Release, stages the static files (dropping compressed duplicates, rebasing the reserved `_framework/` path), and writes a `files.json` the Artifact tool consumes.
+
+### Browser E2E tests
+
+`playground/DeckState.WasmEmulator.E2E` is a Playwright (.NET) smoke suite that boots the emulator's real dev server, drives it in a headless browser, and asserts on the SVG the plugin loops render back (ReadyDeck toggle + counter reset, device reshaping, SessionBoard rendering its mock sessions).
+
+```bash
+dotnet test playground/DeckState.WasmEmulator.E2E
+```
+
+The fixture launches the pre-installed Chromium via `ExecutablePath` (no `playwright install` needed) and records a `.webm` video and a Playwright trace per test into `artifacts/e2e/` (gitignored). Open a trace with `dotnet tool run playwright show-trace artifacts/e2e/traces/<name>.zip`.
