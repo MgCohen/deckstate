@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using DeckState.Core;
 using DeckState.StreamDeck;
 
@@ -6,10 +5,10 @@ namespace DeckState.Samples.SessionBoardDeck;
 
 public static class SessionBoardKey
 {
-    public static Key<SessionBoardContext> Create(string keyId, int slot, SessionBoardContext context, IKeySurface surface) =>
-        new(keyId, context, surface, command => command.Name == "press" ? new KeyEvent("press") : null, new Display(slot));
+    public static Key<SessionBoardContext> Create(string keyId, int slot, SessionBoardContext context, IKeySurface surface, ISessionOpener opener) =>
+        new(keyId, context, surface, command => command.Name == "press" ? new KeyEvent("press") : null, new Display(slot, opener));
 
-    private sealed class Display(int slot) : KeyState<SessionBoardContext>
+    private sealed class Display(int slot, ISessionOpener opener) : KeyState<SessionBoardContext>
     {
         private long _revision = -1;
 
@@ -22,11 +21,11 @@ public static class SessionBoardKey
             return ValueTask.FromResult(StateReaction.Render);
         }
 
-        public override ValueTask<StateReaction> OnEventAsync(KeyEvent @event, SessionBoardContext context, CancellationToken cancellationToken)
+        public override async ValueTask<StateReaction> OnEventAsync(KeyEvent @event, SessionBoardContext context, CancellationToken cancellationToken)
         {
             var url = context.SessionAt(slot)?.OpenUrl;
-            if (!string.IsNullOrWhiteSpace(url)) Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            return ValueTask.FromResult(StateReaction.None);
+            if (!string.IsNullOrWhiteSpace(url)) await opener.OpenAsync(url, cancellationToken);
+            return StateReaction.None;
         }
 
         public override KeyVisual Draw(SessionBoardContext context)

@@ -31,4 +31,16 @@
     <Compile Include="..\..\Samples\ReadyDeck\DeckState.ReadyDeckPlugin\ReadyCountSpinnerKey.cs" Link="ReadyDeck\ReadyCountSpinnerKey.cs" />
   </ItemGroup>
 
+  <!-- The REAL SessionBoard logic, minus the hardware-only seams (Battlebox HTTP client, OS URL
+       opener, hardware entrypoint, Program). The emulator injects its own source and opener. -->
+  <ItemGroup>
+    <Compile Include="..\..\Samples\SessionBoardDeck\DeckState.SessionBoardPlugin\SessionBoardPlugin.cs" Link="SessionBoard\SessionBoardPlugin.cs" />
+    <Compile Include="..\..\Samples\SessionBoardDeck\DeckState.SessionBoardPlugin\SessionBoardContext.cs" Link="SessionBoard\SessionBoardContext.cs" />
+    <Compile Include="..\..\Samples\SessionBoardDeck\DeckState.SessionBoardPlugin\SessionBoardRuntime.cs" Link="SessionBoard\SessionBoardRuntime.cs" />
+    <Compile Include="..\..\Samples\SessionBoardDeck\DeckState.SessionBoardPlugin\SessionBoardKey.cs" Link="SessionBoard\SessionBoardKey.cs" />
+    <Compile Include="..\..\Samples\SessionBoardDeck\DeckState.SessionBoardPlugin\SessionBoardSnapshot.cs" Link="SessionBoard\SessionBoardSnapshot.cs" />
+    <Compile Include="..\..\Samples\SessionBoardDeck\DeckState.SessionBoardPlugin\ISessionBoardSource.cs" Link="SessionBoard\ISessionBoardSource.cs" />
+    <Compile Include="..\..\Samples\SessionBoardDeck\DeckState.SessionBoardPlugin\ISessionOpener.cs" Link="SessionBoard\ISessionOpener.cs" />
+  </ItemGroup>
+
 </Project>

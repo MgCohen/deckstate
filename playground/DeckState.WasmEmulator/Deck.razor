@@ -1,94 +1,203 @@
 @implements IAsyncDisposable
+@inject IJSRuntime Js
 @using System.Text.Json
 @using DeckState.StreamDeck
-@using DeckState.Samples.ReadyDeck
+@using DeckState.WasmEmulator.Emulator
 
-<div class="wrap">
-  <h1>DeckState · ReadyDeck (live C#)</h1>
-  <p class="sub">The real <code>ReadyDeckPlugin</code> loop over the real <code>DeckState.Core</code> + <code>DeckState.StreamDeck</code> stack, compiled to WebAssembly. Only the Elgato WebSocket is swapped for an in-process transport — the same <code>willAppear</code>/<code>keyDown</code>/<code>setImage</code> JSON crosses it. Click a tile = a real serialized <code>keyDown</code>.</p>
-
-  <div class="grid">
-    @foreach (var slot in _slots)
+<div class="app">
+  <div class="bar">
+    <div class="group">
+      <label for="project">Project</label>
+      <select id="project" value="@_project.Name" @onchange="OnProjectChanged">
+        @foreach (var project in EmulatorProjects.All)
+        {
+          <option value="@project.Name">@project.Name</option>
+        }
+      </select>
+    </div>
+    <div class="group">
+      <label for="device">Device</label>
+      <select id="device" value="@_device.Name" @onchange="OnDeviceChanged">
+        @foreach (var device in DeckDevice.All)
+        {
+          <option value="@device.Name">@device.Name (@device.Columns×@device.Rows)</option>
+        }
+      </select>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn @(_configuring ? "on" : null)" @onclick="ToggleConfigure">
+      @(_configuring ? "Done" : "Configure")
+    </button>
+    @if (_configuring)
     {
-      <button class="key @(slot.IsCounter ? "counter" : null)" @onclick="() => KeyDownAsync(slot)">@Svg(slot.Context)</button>
+      <button class="btn" @onclick="ResetLayoutAsync">Reset layout</button>
     }
   </div>
 
-  <div class="controls">
-    <button class="btn" @onclick="AutoRunAsync" disabled="@_running">@(_running ? "Running…" : "Auto-run")</button>
-    <button class="btn secondary" @onclick="ResetAsync">Reset</button>
+  <div class="deck @(_configuring ? "cfg" : null)">
+    <div class="deck-grid" style="grid-template-columns:repeat(@_device.Columns, 72px);">
+      @for (var slot = 0; slot < _device.KeyCount; slot++)
+      {
+        var index = slot;
+        var context = ContextFor(index);
+        var assigned = _layout.TryGetValue(index, out var actionId);
+        var svg = _svgByContext.GetValueOrDefault(context);
+        var pressable = !_configuring && assigned;
+
+        <button class="k @(assigned ? "assigned" : "empty") @(pressable ? "pressable" : null)"
+                @onclick="() => OnKeyClickAsync(index)">
+          @if (svg is not null)
+          {
+            @(new MarkupString(svg))
+          }
+          else if (!assigned)
+          {
+            <span class="plus">@(_configuring ? "+" : "")</span>
+          }
+          @if (_configuring)
+          {
+            <span class="badge">@(assigned ? _project.ActionById(actionId)?.ShortLabel : "empty")</span>
+          }
+        </button>
+      }
+    </div>
   </div>
+
+  <p class="hint">
+    @if (_configuring)
+    {
+      <span>Click a key to cycle it through this project's actions and back to empty.</span>
+    }
+    else
+    {
+      <span>The real <code>@_project.Name</code> plugin loop, compiled to WebAssembly. Click a key to send a serialized <code>keyDown</code>.</span>
+    }
+  </p>
 </div>
 
 @code {
-    private sealed record Slot(string Context, string Action, bool IsCounter, int Row, int Column);
+    private EmulatorProject _project = EmulatorProjects.All[0];
+    private DeckDevice _device = DeckDevice.Standard;
+    private bool _configuring;
 
-    private readonly List<Slot> _slots = new();
+    private readonly Dictionary<int, string> _layout = new();
     private readonly Dictionary<string, string> _svgByContext = new(StringComparer.Ordinal);
 
-    private JsBridgeTransport _transport = null!;
-    private CancellationTokenSource _cts = null!;
+    private JsBridgeTransport? _transport;
+    private CancellationTokenSource? _cts;
     private Task _host = Task.CompletedTask;
-    private bool _running;
     private bool _renderPending;
 
-    private const string CounterContext = "cctx";
+    private static string ContextFor(int slot) => $"slot-{slot}";
 
     protected override async Task OnInitializedAsync()
     {
-        for (var i = 0; i < 12; i++)
-            _slots.Add(new Slot($"wctx-{i + 1:00}", ReadyDeckPlugin.WorkAction, false, i / 4, i % 4));
-        _slots.Add(new Slot(CounterContext, ReadyDeckPlugin.CounterAction, true, 3, 0));
+        ApplyDefaultLayout();
+        await StartAsync();
+    }
 
-        _transport = new JsBridgeTransport();
-        _transport.Frame += OnFrame;
-        _cts = new CancellationTokenSource();
+    private void ApplyDefaultLayout()
+    {
+        _layout.Clear();
+        foreach (var (slot, actionId) in _project.DefaultLayout(_device))
+            if (slot < _device.KeyCount)
+                _layout[slot] = actionId;
+    }
 
-        // Host the real plugin loop over the bridge — identical to hardware, minus the socket.
+    // Start the real plugin loop over a fresh in-process transport, then announce the configured keys.
+    private Task StartAsync()
+    {
+        var transport = new JsBridgeTransport();
+        transport.Frame += OnFrame;
+        var cts = new CancellationTokenSource();
+        _transport = transport;
+        _cts = cts;
+
+        var run = _project.CreateRun(Js, _device.Columns);
         _host = StreamDeckPluginHost.RunAsync(
-            _transport,
+            transport,
             new StreamDeckPluginArguments(0, "deckstate-emulator", "registerPlugin"),
-            ReadyDeckPlugin.RunAsync,
-            _cts.Token);
+            run,
+            cts.Token);
 
-        // The Stream Deck app sends one willAppear per visible key. So do we — real frames.
-        foreach (var slot in _slots)
-            _transport.Deliver(WillAppear(slot));
+        foreach (var (slot, actionId) in _layout.OrderBy(entry => entry.Key))
+            transport.Deliver(WillAppear(actionId, ContextFor(slot), slot));
 
-        await Task.CompletedTask;
-    }
-
-    private MarkupString Svg(string context) =>
-        new(_svgByContext.TryGetValue(context, out var svg) ? svg : "");
-
-    private Task KeyDownAsync(Slot slot)
-    {
-        _transport.Deliver(KeyDown(slot));
         return Task.CompletedTask;
     }
 
-    private async Task AutoRunAsync()
+    private async Task StopAsync()
     {
-        if (_running) return;
-        _running = true;
-        await ResetAsync();
-        foreach (var slot in _slots.Where(s => !s.IsCounter))
+        if (_transport is null || _cts is null) return;
+        _transport.Frame -= OnFrame;
+        _cts.Cancel();
+        try { await _host; } catch (OperationCanceledException) { } catch (JsonException) { }
+        await _transport.DisposeAsync();
+        _cts.Dispose();
+        _transport = null;
+        _cts = null;
+        _host = Task.CompletedTask;
+        _svgByContext.Clear();
+    }
+
+    private async Task ReconfigureAsync()
+    {
+        await StopAsync();
+        await StartAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnProjectChanged(ChangeEventArgs e)
+    {
+        var name = e.Value?.ToString();
+        var next = EmulatorProjects.All.FirstOrDefault(p => p.Name == name);
+        if (next is null || ReferenceEquals(next, _project)) return;
+        _project = next;
+        ApplyDefaultLayout();
+        await ReconfigureAsync();
+    }
+
+    private async Task OnDeviceChanged(ChangeEventArgs e)
+    {
+        var name = e.Value?.ToString();
+        var next = DeckDevice.All.FirstOrDefault(d => d.Name == name);
+        if (next is null || ReferenceEquals(next, _device)) return;
+        _device = next;
+        ApplyDefaultLayout();
+        await ReconfigureAsync();
+    }
+
+    private void ToggleConfigure() => _configuring = !_configuring;
+
+    private async Task ResetLayoutAsync()
+    {
+        ApplyDefaultLayout();
+        await ReconfigureAsync();
+    }
+
+    private async Task OnKeyClickAsync(int slot)
+    {
+        if (_configuring)
         {
-            _transport.Deliver(KeyDown(slot));
-            await Task.Delay(160);
+            CycleAssignment(slot);
+            await ReconfigureAsync();
+            return;
         }
-        await Task.Delay(700);
-        await ResetAsync(); // counter press resets the deck
-        _running = false;
+
+        if (_transport is not null && _layout.TryGetValue(slot, out var actionId))
+            _transport.Deliver(KeyDown(actionId, ContextFor(slot), slot));
     }
 
-    private Task ResetAsync()
+    // Cycle a key: empty -> action[0] -> action[1] -> ... -> empty.
+    private void CycleAssignment(int slot)
     {
-        _transport.Deliver(KeyDown(_slots.First(s => s.IsCounter)));
-        return Task.CompletedTask;
+        var options = new List<string?> { null };
+        options.AddRange(_project.Actions.Select(a => a.ActionId));
+        var current = _layout.GetValueOrDefault(slot);
+        var next = options[(options.IndexOf(current) + 1) % options.Count];
+        if (next is null) _layout.Remove(slot); else _layout[slot] = next;
     }
 
-    // Inbound frame from the plugin. We only care about setImage (ReadyDeck sets no titles).
     private void OnFrame(string json)
     {
         try
@@ -120,28 +229,16 @@
         });
     }
 
-    private static string WillAppear(Slot slot) => JsonSerializer.Serialize(new
+    private string WillAppear(string action, string context, int slot) => Frame(action, context, slot, "willAppear");
+    private string KeyDown(string action, string context, int slot) => Frame(action, context, slot, "keyDown");
+
+    private string Frame(string action, string context, int slot, string @event) => JsonSerializer.Serialize(new
     {
-        action = slot.Action,
-        context = slot.Context,
-        @event = "willAppear",
-        payload = new { coordinates = new { row = slot.Row, column = slot.Column }, settings = new { } }
+        action,
+        context,
+        @event,
+        payload = new { coordinates = new { row = slot / _device.Columns, column = slot % _device.Columns }, settings = new { } }
     });
 
-    private static string KeyDown(Slot slot) => JsonSerializer.Serialize(new
-    {
-        action = slot.Action,
-        context = slot.Context,
-        @event = "keyDown",
-        payload = new { coordinates = new { row = slot.Row, column = slot.Column }, settings = new { } }
-    });
-
-    public async ValueTask DisposeAsync()
-    {
-        _transport.Frame -= OnFrame;
-        _cts.Cancel();
-        try { await _host; } catch (OperationCanceledException) { } catch (JsonException) { }
-        await _transport.DisposeAsync();
-        _cts.Dispose();
-    }
+    public async ValueTask DisposeAsync() => await StopAsync();
 }

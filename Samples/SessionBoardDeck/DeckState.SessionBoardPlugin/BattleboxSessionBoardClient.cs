@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace DeckState.Samples.SessionBoardDeck;
 
-public sealed class BattleboxSessionBoardClient(HttpClient http, Uri endpoint)
+public sealed class BattleboxSessionBoardClient(HttpClient http, Uri endpoint) : ISessionBoardSource
 {
     public async Task<SessionBoardSnapshot> GetAsync(CancellationToken cancellationToken)
     {
