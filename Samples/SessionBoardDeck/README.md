@@ -4,6 +4,8 @@ A native Stream Deck plugin that renders the Battlebox `session-board` snapshot.
 
 It polls `http://127.0.0.1:8787/api/sessions` every five seconds. Set `DECKSTATE_BATTLEBOX_URL` when Battlebox is hosted elsewhere. A key opens the session's `openUrl` on press.
 
+When Battlebox is behind Cloudflare Access, authenticate with a Cloudflare Access [service token](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/). Create the token and a matching Service Auth policy on the Access application, then set `DECKSTATE_BATTLEBOX_CF_CLIENT_ID` and `DECKSTATE_BATTLEBOX_CF_CLIENT_SECRET`. When both are present the plugin sends them as `CF-Access-Client-Id` / `CF-Access-Client-Secret` on every request.
+
 This deliberately does not collect Claude data itself: Battlebox and `session-board` remain the collection and normalization authority. Quota/reset is intentionally a later, separate source because it is not in the current board contract.
 
 ```bash

@@ -1,48 +1,89 @@
+using System.Globalization;
 using System.Text;
-using SkiaSharp;
 
 namespace DeckState.StreamDeck;
 
-public sealed class KeyCanvas(SKCanvas canvas)
+/// <summary>
+/// Fluent 144x144 key painter that emits SVG directly. Each call appends one element;
+/// element order is paint order (later draws sit on top), matching a canvas painter model.
+/// No native graphics dependency: the emitted SVG is rasterized by the consumer (Stream Deck,
+/// a browser, the protocol harness).
+/// </summary>
+public sealed class KeyCanvas(StringBuilder svg)
 {
     public KeyCanvas Fill(string color, float cornerRadius = 12)
     {
-        using var paint = Paint(color);
-        canvas.DrawRoundRect(0, 0, 144, 144, cornerRadius, cornerRadius, paint);
+        var (hex, opacity) = ToSvgColor(color);
+        svg.Append(CultureInfo.InvariantCulture,
+            $"<rect x=\"0\" y=\"0\" width=\"144\" height=\"144\" rx=\"{N(cornerRadius)}\" ry=\"{N(cornerRadius)}\" fill=\"{hex}\"{opacity}/>");
         return this;
     }
 
     public KeyCanvas Circle(float x, float y, float radius, string color)
     {
-        using var paint = Paint(color);
-        canvas.DrawCircle(x, y, radius, paint);
+        var (hex, opacity) = ToSvgColor(color);
+        svg.Append(CultureInfo.InvariantCulture,
+            $"<circle cx=\"{N(x)}\" cy=\"{N(y)}\" r=\"{N(radius)}\" fill=\"{hex}\"{opacity}/>");
         return this;
     }
 
     public KeyCanvas Text(string text, float x, float y, float size, string color = "#FFFFFF")
     {
-        using var paint = Paint(color);
-        using var font = new SKFont(SKTypeface.FromFamilyName("Arial"), size);
-        using var path = font.GetTextPath(Encoding.UTF8.GetBytes(text), SKTextEncoding.Utf8,
-            new SKPoint(x - font.MeasureText(text) / 2, y));
-        canvas.DrawPath(path, paint);
+        var (hex, opacity) = ToSvgColor(color);
+        svg.Append(CultureInfo.InvariantCulture,
+            $"<text x=\"{N(x)}\" y=\"{N(y)}\" font-family=\"Arial, Helvetica, sans-serif\" font-size=\"{N(size)}\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{hex}\"{opacity}>{Escape(text)}</text>");
         return this;
     }
 
     public KeyCanvas Triangle(float x, float y, float size, string color, float rotationDegrees = 0)
     {
-        canvas.Save();
-        canvas.RotateDegrees(rotationDegrees, x, y);
-        using var path = new SKPath();
-        path.MoveTo(x, y - size);
-        path.LineTo(x + size * .7f, y + size);
-        path.LineTo(x - size * .7f, y + size);
-        path.Close();
-        using var paint = Paint(color);
-        canvas.DrawPath(path, paint);
-        canvas.Restore();
+        var (hex, opacity) = ToSvgColor(color);
+        var points = string.Create(CultureInfo.InvariantCulture,
+            $"{N(x)},{N(y - size)} {N(x + size * .7f)},{N(y + size)} {N(x - size * .7f)},{N(y + size)}");
+        var transform = rotationDegrees == 0
+            ? string.Empty
+            : string.Create(CultureInfo.InvariantCulture, $" transform=\"rotate({N(rotationDegrees)} {N(x)} {N(y)})\"");
+        svg.Append(CultureInfo.InvariantCulture,
+            $"<polygon points=\"{points}\" fill=\"{hex}\"{opacity}{transform}/>");
         return this;
     }
 
-    private static SKPaint Paint(string color) => new() { Color = SKColor.Parse(color), IsAntialias = true };
+    private static string N(float value) =>
+        value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    // Accepts #RRGGBB or Skia-style #AARRGGBB (alpha first). Returns an SVG fill hex plus an
+    // optional fill-opacity attribute so translucent overlays match the original rendering.
+    private static (string Hex, string Opacity) ToSvgColor(string color)
+    {
+        var c = color.StartsWith('#') ? color[1..] : color;
+        byte a = 255, r, g, b;
+        if (c.Length == 8)
+        {
+            a = Convert.ToByte(c[..2], 16);
+            r = Convert.ToByte(c[2..4], 16);
+            g = Convert.ToByte(c[4..6], 16);
+            b = Convert.ToByte(c[6..8], 16);
+        }
+        else if (c.Length == 6)
+        {
+            r = Convert.ToByte(c[..2], 16);
+            g = Convert.ToByte(c[2..4], 16);
+            b = Convert.ToByte(c[4..6], 16);
+        }
+        else
+        {
+            return (color, string.Empty); // named colour or already valid: pass through
+        }
+
+        var hex = $"#{r:X2}{g:X2}{b:X2}";
+        var opacity = a == 255
+            ? string.Empty
+            : string.Create(CultureInfo.InvariantCulture, $" fill-opacity=\"{a / 255.0:0.###}\"");
+        return (hex, opacity);
+    }
+
+    private static string Escape(string text) => text
+        .Replace("&", "&amp;")
+        .Replace("<", "&lt;")
+        .Replace(">", "&gt;");
 }
