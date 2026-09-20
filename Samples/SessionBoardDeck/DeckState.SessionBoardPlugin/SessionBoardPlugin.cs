@@ -32,7 +32,7 @@ public static partial class SessionBoardPlugin
             {
                 using var message = JsonDocument.Parse(await connection.ReceiveAsync(cancellationToken));
                 var root = message.RootElement;
-                if (root.GetProperty("action").GetString() != SessionAction || !root.TryGetProperty("context", out var contextElement)) continue;
+                if (!root.TryGetProperty("action", out var action) || action.GetString() != SessionAction || !root.TryGetProperty("context", out var contextElement)) continue;
                 var streamDeckContext = contextElement.GetString()!;
 
                 switch (root.GetProperty("event").GetString())
@@ -58,7 +58,10 @@ public static partial class SessionBoardPlugin
                         break;
                     case "keyDown":
                         if (keyByContext.TryGetValue(streamDeckContext, out var pressed))
-                            await deck.DispatchAsync(new DeckCommand(pressed, "press"), cancellationToken);
+                        {
+                            try { await deck.DispatchAsync(new DeckCommand(pressed, "press"), cancellationToken); }
+                            catch (Exception ex) { DeckLog.Write("error", $"press dispatch failed: {ex}"); }
+                        }
                         break;
                 }
             }
