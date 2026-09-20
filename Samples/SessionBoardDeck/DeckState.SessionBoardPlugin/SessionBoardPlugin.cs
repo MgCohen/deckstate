@@ -60,6 +60,7 @@ public static partial class SessionBoardPlugin
                         if (keyByContext.TryGetValue(streamDeckContext, out var pressed))
                         {
                             try { await deck.DispatchAsync(new DeckCommand(pressed, "press"), cancellationToken); }
+                            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { /* shutting down */ }
                             catch (Exception ex) { DeckLog.Write("error", $"press dispatch failed: {ex}"); }
                         }
                         break;
