@@ -1,0 +1,40 @@
+{
+  "rules": [
+    {
+      "id": "target",
+      "title": "Define the target",
+      "text": "Every ability must say who or what it affects — a target enemy, a target ally, the caster, or all units of a type. An effect with no target, such as “Deal 5 damage”, is invalid.",
+      "children": [
+        {
+          "id": "target-keyword",
+          "title": "Use a known target",
+          "text": "The target is one of: target enemy, target ally, the caster, all enemies, or all allies. Don’t invent new target words.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "values",
+      "title": "Use exact values",
+      "text": "Every amount is an exact number. Replace vague words like “some”, “a little”, or “heavy” with a number, for example “Deal 5 damage”.",
+      "children": []
+    },
+    {
+      "id": "one-effect",
+      "title": "One effect per ability",
+      "text": "An ability does one kind of thing. Don’t combine opposed effects — for example dealing damage and restoring health — in the same ability; split them into separate abilities.",
+      "children": []
+    }
+  ],
+  "rubrics": [
+    { "id": "understandable", "title": "Understandable", "passWhen": "Someone unfamiliar with the ability can explain exactly what it does from the text alone." },
+    { "id": "complete", "title": "Complete", "passWhen": "Every number, target, and condition needed to use the ability is present." },
+    { "id": "consistent", "title": "Consistent wording", "passWhen": "It uses the same terms the rest of the game uses (damage, health, and so on) without inventing new ones." },
+    { "id": "rule-compliant", "title": "Follows the rules", "passWhen": "The ability satisfies every rule and sub-rule supplied as context." }
+  ],
+  "content": [
+    { "id": "fireball", "title": "Fireball", "text": "Deal 5 damage to a target enemy." },
+    { "id": "heal", "title": "Heal", "text": "Restore 4 health to a target ally." },
+    { "id": "vampiric-strike", "title": "Vampiric Strike", "text": "Deal 4 damage to a target enemy and restore 4 health to the caster." }
+  ]
+}
