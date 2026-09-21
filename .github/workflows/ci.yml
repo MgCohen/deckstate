@@ -19,6 +19,14 @@ jobs:
       - name: Build solution (libraries + samples)
         run: dotnet build DeckState.slnx -c Release
 
+      # Headless protocol harnesses: replay the exact host frame sequence (deviceDidConnect first,
+      # then willAppear / keyDown) over a loopback WebSocket and assert the plugin renders and acts.
+      # No hardware, no browser. Catches message-loop regressions like the keyDown crash.
+      - name: Run protocol harnesses
+        run: |
+          dotnet run -c Release --no-build --project Samples/ReadyDeck/DeckState.ReadyDeck.ProtocolHarness
+          dotnet run -c Release --no-build --project Samples/SessionBoardDeck/DeckState.SessionBoardPlugin.ProtocolHarness
+
       - name: Build emulator (Blazor WASM)
         run: dotnet build playground/DeckState.WasmEmulator/DeckState.WasmEmulator.csproj -c Release
 

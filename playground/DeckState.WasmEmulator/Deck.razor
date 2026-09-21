@@ -120,6 +120,11 @@
             run,
             cts.Token);
 
+        // The real host sends action-less frames (deviceDidConnect) before any willAppear.
+        // Deliver one here so the emulator exercises the same loop path hardware does — a plugin
+        // that mishandles a frame without an "action" field must fail in the emulator too.
+        transport.Deliver(DeviceDidConnect());
+
         foreach (var (slot, actionId) in _layout.OrderBy(entry => entry.Key))
             transport.Deliver(WillAppear(actionId, ContextFor(slot), slot));
 
@@ -231,6 +236,14 @@
 
     private string WillAppear(string action, string context, int slot) => Frame(action, context, slot, "willAppear");
     private string KeyDown(string action, string context, int slot) => Frame(action, context, slot, "keyDown");
+
+    // Action-less frame the host sends on connect; carries no "action"/"context". The plugin loop must skip it.
+    private string DeviceDidConnect() => JsonSerializer.Serialize(new
+    {
+        @event = "deviceDidConnect",
+        device = "deckstate-emulator-device",
+        deviceInfo = new { name = _device.Name, type = 0 }
+    });
 
     private string Frame(string action, string context, int slot, string @event) => JsonSerializer.Serialize(new
     {

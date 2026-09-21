@@ -25,6 +25,11 @@ using (var document = JsonDocument.Parse(registration))
 }
 
 const string device = "harness-device";
+
+// The real host sends action-less frames (deviceDidConnect) before any willAppear. Replay one so
+// the plugin loop is exercised against a frame with no "action"/"context" field — it must skip it.
+await server.SendAsync(new { @event = "deviceDidConnect", device, deviceInfo = new { name = "Stream Deck", type = 0 } });
+
 const string counterContext = "counter";
 await server.SendActionAsync(ReadyDeckPlugin.CounterAction, "willAppear", counterContext, device);
 var initial = new Dictionary<string, string> { [counterContext] = await server.ReceiveImageForContextAsync(counterContext) };
